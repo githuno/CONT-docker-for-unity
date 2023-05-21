@@ -1,0 +1,6 @@
+[submodule "unity-dockerfiles"]
+	path = unity-dockerfiles
+	url = https://github.com/githuno/unity-dockerfiles.git
+[submodule "sample"]
+	path = sample
+	url = https://github.com/githuno/unity-dockerfiles.git

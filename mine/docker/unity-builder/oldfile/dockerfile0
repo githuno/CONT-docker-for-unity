@@ -1,0 +1,71 @@
+FROM ubuntu:20.04
+
+# Arguments
+ARG USER=initial
+ARG GROUP=initial
+ARG UID=1000
+ARG GID=${UID}
+ARG SHELL=/bin/bash
+
+# DEBIAN_FRONTEND=noninteractive:非対話型モードでのDebianパッケージのインストールを指定するための設定
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        # ローカルの deb パッケージをその依存関係を解決しながら インストール?
+        gdebi-core \
+        # for developments
+        wget curl ssh zsh terminator gnome-terminal git vim tig sudo\
+        # # for GUI access
+        # x11-apps
+        # 警告対策
+        python3-notify2 libkeybinder-3.0-dev dbus libgbm1 libdrm2 libnss3\
+    && rm -rf /var/lib/apt/lists/*
+
+
+# # Download and install Unity Hub
+# RUN wget https://public-cdn.cloud.unity3d.com/hub/prod/UnityHub.AppImage && \
+#     chmod +x UnityHub.AppImage && \
+#     ./UnityHub.AppImage --appimage-extract && \
+#     mv squashfs-root /opt/UnityHub && \
+#     ln -s /opt/UnityHub/UnityHub /usr/local/bin/UnityHub
+
+# # Install Unity versions using Unity Hub
+# # For example, to install Unity version 2019.4.28f1
+# RUN UnityHub install --version 2019.4.28f1 --module "Editor"
+
+# Set up the display for GUI access
+ENV DISPLAY=:0
+
+# Setup users and groups
+RUN groupadd --gid ${GID} ${GROUP} \
+  && useradd --gid ${GID} --uid ${UID} -ms ${SHELL} ${USER} \
+  && mkdir -p /etc/sudoers.d \
+  && echo "${USER}:x:${UID}:${UID}:${USER},,,:$HOME:${shell}" >> /etc/passwd \
+  && echo "${USER}:x:${UID}:" >> /etc/group \
+  && echo "${USER} ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/${USER}" \
+  && chmod 0440 "/etc/sudoers.d/${USER}"
+# setup terminator config
+RUN mkdir -p /home/${USER}/.config/terminator
+COPY config/terminator/config /home/${USER}/.config/terminator
+RUN sudo chown -R ${USER}:${GROUP} /home/${USER}/.config
+
+# get untiy-hub
+RUN mkdir -p /opt/unity \
+  && wget --no-check-certificate -P /opt/unity https://public-cdn.cloud.unity3d.com/hub/prod/UnityHub.AppImage \
+  && chown -R ${USER}:${GID} /opt/unity && chmod +x /opt/unity/UnityHub.AppImage \
+  && /opt/unity/UnityHub.AppImage --appimage-extract \
+  && mv squashfs-root /opt/UnityHub \
+  && ln -s /opt/UnityHub/UnityHub /usr/local/bin/UnityHub \
+  && echo 'export PATH="$PATH:/UnityHub"' >> ~/.bashrc 
+
+RUN chmod +rx /opt/UnityHub/
+
+
+# Switch user to ${USER}
+USER ${USER}
+
+# Switch to user's HOME folder
+WORKDIR /home/${USER}
+
+# Set up entrypoint
+ENTRYPOINT ["terminator"]

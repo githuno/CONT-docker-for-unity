@@ -1,0 +1,91 @@
+FROM ubuntu:18.04
+
+# Arguments
+ARG USER=
+ARG GROUP=initial
+ARG UID=1000
+ARG GID=${UID}
+ARG SHELL=/bin/bash
+
+# Replace apt urls
+RUN sed -i 's@archive.ubuntu.com@ftp.jaist.ac.jp/pub/Linux@g' /etc/apt/sources.list
+
+# Install packages
+RUN export DEBIAN_FRONTEND=noninteractive \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends \
+    # for timezone
+    tzdata \
+    # for language support
+    language-pack-ja-base language-pack-ja fonts-ipafont-gothic fcitx-mozc fcitx-imlist \
+    # for developments
+    wget curl ssh zsh terminator git vim sudo nano \
+    # for Unity
+      # libgl1-mesaは失敗 mesa-utilsで代替え 
+    mesa-utils \
+      # ？
+    libxi6 libxrender1 libxtst6 libgconf-2-4 libasound2 \
+      # エラーに合わせて追加していったやつなので必要そう
+    software-properties-common libgbm1 libnss3 xdg-utils\
+      # GUI表示(一度はこれで表示されたが、ほかにも必要だったのか再現できず。。)
+    # gnome-terminal libgconf-2-4 libgdk-pixbuf2.0-0 libgtk2.0-0 libnspr4 \
+    # for WSL2
+    dbus-x11 xserver-xorg x11-apps x11-utils x11-xserver-utils \
+    # for WSLg
+    pulseaudio-utils
+
+    # for VSCode Remote Development
+    # openssh-server
+
+# # FUSE:https://github.com/AppImage/AppImageKit/wiki/FUSE
+# # 手動でextractするならいらないっぽい。FUSEエラーの解決策が見つからず手動を選択（ただし見本ではこちらで動いている）
+# RUN sudo add-apt-repository universe \
+#   && sudo apt install libfuse2
+
+# Setup ime and timezone envs
+ENV TZ=Asia/Tokyo \
+    GTK_IM_MODULE=xim \
+    QT_IM_MODULE=fcitx \
+    XMODIFIERS=@im=fcitx \
+    DefalutIMModule=fcitx
+
+# Setup locale
+RUN locale-gen ja_JP.UTF-8
+ENV LANG=ja_JP.UTF-8 \
+    LC_ALL=ja_JP.UTF-8
+
+# Setup users and groups
+RUN groupadd --gid ${GID} ${GROUP} \
+  && useradd --gid ${GID} --uid ${UID} -ms ${SHELL} ${USER} \
+  && mkdir -p /etc/sudoers.d \
+  && echo "${USER}:x:${UID}:${UID}:${USER},,,:$HOME:${shell}" >> /etc/passwd \
+  && echo "${USER}:x:${UID}:" >> /etc/group \
+  && echo "${USER} ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/${USER}" \
+  && chmod 0440 "/etc/sudoers.d/${USER}"
+
+# get untiy-hub
+RUN mkdir -p /optunity \
+  && wget --no-check-certificate -P /opt/unity https://public-cdn.cloud.unity3d.com/hub/prod/UnityHub.AppImage \
+  && chown -R ${USER}:${GID} /opt/unity && chmod +x /opt/unity/UnityHub.AppImage
+
+# copy entrypoint
+COPY entrypoint.bash /entrypoint.bash
+RUN chmod 777 /entrypoint.bash
+
+# setup terminator config
+RUN mkdir -p /home/${USER}/.config/terminator
+COPY config/terminator/config /home/${USER}/.config/terminator
+RUN sudo chown -R ${USER}:${GROUP} /home/${USER}/.config
+
+# Switch user to ${USER}
+USER ${USER}
+
+# Make SSH available
+EXPOSE 22
+
+# Switch to user's HOME folder
+WORKDIR /opt/unity
+RUN ./UnityHub.AppImage --appimage-extract
+
+# CMD ["terminator"]
+ENTRYPOINT ["/entrypoint.bash"]

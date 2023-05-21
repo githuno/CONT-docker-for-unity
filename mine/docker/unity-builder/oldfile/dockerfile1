@@ -1,0 +1,86 @@
+FROM ubuntu:20.04
+
+# Arguments
+ARG USER=initial
+ARG GROUP=initial
+ARG UID=1000
+ARG GID=${UID}
+ARG SHELL=/bin/bash
+
+# Replace apt urls
+RUN sed -i 's@archive.ubuntu.com@ftp.jaist.ac.jp/pub/Linux@g' /etc/apt/sources.list
+
+# Install packages
+RUN export DEBIAN_FRONTEND=noninteractive \
+  && apt update \
+  && apt install -y --no-install-recommends \
+    # for development
+    wget curl ssh zsh terminator gnome-terminal git vim tig sudo nano\
+    # for X11 forwarding
+    xauth xorg \
+    # for Unity and Visual Studio Code
+    gdebi-core \
+    python3-notify2 libkeybinder-3.0-dev dbus libgbm1 libdrm2 libnss3 kmod fuse libfuse2\
+  && rm -rf /var/lib/apt/lists/*
+
+# # FUSE https://github.com/AppImage/AppImageKit/wiki/FUSE
+# RUN sudo modprobe fuse \
+#     && sudo groupadd fuse \
+#     && user=${USER} \
+#     && sudo usermod -a -G fuse $user
+
+# Enable fuse module
+RUN modprobe fuse
+
+# Create Downloads directory
+RUN mkdir /root/Downloads
+
+# Setup users and groups
+RUN groupadd --gid ${GID} ${GROUP} \
+  && useradd --gid ${GID} --uid ${UID} -ms ${SHELL} ${USER} \
+  && mkdir -p /etc/sudoers.d \
+  && echo "${USER}:x:${UID}:${UID}:${USER},,,:$HOME:${shell}" >> /etc/passwd \
+  && echo "${USER}:x:${UID}:" >> /etc/group \
+  && echo "${USER} ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/${USER}" \
+  && chmod 0440 "/etc/sudoers.d/${USER}"
+# setup terminator config
+RUN mkdir -p /home/${USER}/.config/terminator
+COPY config/terminator/config /home/${USER}/.config/terminator
+RUN sudo chown -R ${USER}:${GROUP} /home/${USER}/.config
+
+# Install Unity
+RUN mkdir -p /opt/unity \
+    && wget -P /opt/unity https://public-cdn.cloud.unity3d.com/hub/prod/UnityHub.AppImage \
+    && chown -R ${USER}:${GID} /opt/unity && chmod +x /opt/unity/UnityHub.AppImage \
+    # && rm -rf /usr/local/bin/UnityHub \
+    && cp /opt/unity/UnityHub.AppImage /usr/local/bin/UnityHub \
+    && chmod +x /usr/local/bin/UnityHub
+
+# Install Unity Editor
+RUN /usr/local/bin/UnityHub -- --headless install --version 2020.3.33f1 --module "unity"
+
+# # Run setup.sh
+# RUN /squashfs-root/Unity/setup.sh \
+# # RUN /squashfs-root/unityhub \
+#   && rm -rf /squashfs-root
+
+# Install Visual Studio Code or JetBrains Rider
+# Note: Uncomment one of the two lines below depending on which IDE you want to install.
+# RUN wget https://go.microsoft.com/fwlink/?LinkID=760868 -O vscode.deb && gdebi -n vscode.deb && rm vscode.deb
+# RUN wget https://download.jetbrains.com/rider/JetBrains.Rider-2021.1.3.tar.gz && tar zxvf JetBrains.Rider-2021.1.3.tar.gz && rm JetBrains.Rider-2021.1.3.tar.gz
+
+# Set up X11 forwarding
+ENV DISPLAY=host.docker.internal:0
+
+# Set up entrypoint script
+COPY entrypoint.bash /entrypoint.bash
+RUN chmod 777 /entrypoint.bash
+
+# Switch user to ${USER}
+USER ${USER}
+
+# Switch to user's HOME folder
+WORKDIR /home/${USER}
+
+# Set entrypoint
+ENTRYPOINT ["/entrypoint.bash","terminator"]
