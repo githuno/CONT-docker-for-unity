@@ -21,17 +21,20 @@ RUN export DEBIAN_FRONTEND=noninteractive \
     # for developments
     wget curl ssh zsh terminator git vim sudo nano \
     # for Unity
-      # libgl1-mesaは失敗 mesa-utilsで代替え 
-    mesa-utils \
-      # ？
-    libxi6 libxrender1 libxtst6 libgconf-2-4 libasound2 \
+      # libgl1-mesaは失敗 mesa-utilsで代替え ▶公式でcentOS用との記述あり不要と判断
+      # https://docs.unity.cn/ja/2021.2/Manual/GettingStartedInstallingHub.html
+    # mesa-utils \
+      # ubuntuには必須
+    libgconf-2-4 \
+      # 不要かも
+    # libxi6 libxrender1 libxtst6 libasound2 \
       # エラーに合わせて追加していったやつなので必要そう
     software-properties-common libgbm1 libnss3 xdg-utils\
       # GUI表示(一度はこれで表示されたが、ほかにも必要だったのか再現できず。。)
     # gnome-terminal libgconf-2-4 libgdk-pixbuf2.0-0 libgtk2.0-0 libnspr4 \
-    # for WSL2
+    # for WSL2（不要かも）
     dbus-x11 xserver-xorg x11-apps x11-utils x11-xserver-utils \
-    # for WSLg
+    # for WSLg（不要かも）
     pulseaudio-utils
 
     # for VSCode Remote Development
@@ -39,6 +42,7 @@ RUN export DEBIAN_FRONTEND=noninteractive \
 
 # # FUSE:https://github.com/AppImage/AppImageKit/wiki/FUSE
 # # 手動でextractするならいらないっぽい。FUSEエラーの解決策が見つからず手動を選択（ただし見本ではこちらで動いている）
+# # DOKAN（on windows）やfuse-overlayfs：（https://github.com/containers/fuse-overlayfs）を試したがだめだった。
 # RUN sudo add-apt-repository universe \
 #   && sudo apt install libfuse2
 
